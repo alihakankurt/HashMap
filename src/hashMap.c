@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 
+// The djb2 algorithm written by Daniel J. Bernstein
 size_t _Hash(char *s)
 {
     size_t hash = 5381;
@@ -14,7 +15,7 @@ HashMap * HashMap_Create(size_t initialCapacity)
 {
     HashMap *hashMap = calloc(1, sizeof(HashMap));
     assert(hashMap && "Could not allocate enough memory for hash map");
-    initialCapacity = initialCapacity ? initialCapacity : 4;
+    initialCapacity = initialCapacity ? initialCapacity : INITIAL_HASH_MAP_SIZE;
     hashMap->capacity = initialCapacity;
     hashMap->entries = calloc(initialCapacity, sizeof(HashMapEntry));
     assert(hashMap->entries && "Could not allocate enough memory for entries");
@@ -82,13 +83,46 @@ void * HashMap_Insert(HashMap *hashMap, char *key, void *value)
     return NULL;
 }
 
+void * HashMap_Remove(HashMap *hashMap, char *key)
+{
+    assert(hashMap && "Could not remove entry from hash map because it was null");
+    assert(key && "Could not remove entry from hash map because provided key was null");
+
+    size_t hashValue = _Hash(key);
+    size_t hashIndex = hashValue % hashMap->capacity;
+
+    if (!(hashMap->entries + hashIndex)->used)
+        return NULL;
+    
+    HashMapEntry *entry = hashMap->entries + hashIndex;
+    if (!strcmp(entry->key, key))
+    {
+        void *value = entry->value;
+        free(entry->key);
+        memset(entry, 0, sizeof(HashMapEntry));
+        return value;
+    }
+    
+    while (entry->next && strcmp(entry->next->key, key))
+        entry = entry->next;
+
+    if (!entry->next)
+        return NULL;
+    
+    HashMapEntry *tmp = entry->next;
+    entry->next = entry->next->next;
+    void *value = tmp->value;
+    free(tmp->key);
+    memset(tmp, 0, sizeof(HashMapEntry));
+    return value;
+}
+
 void * HashMap_Get(HashMap *hashMap, char *key)
 {
     assert(hashMap && "Could not get value from hash map because it was null");
     assert(key && "Could not get value from hash map because provided key was null");
 
-    size_t hashValue = _Hash(key);
-    size_t hashIndex = hashValue % hashMap->capacity;
+    size_t hashIndex = _Hash(key) % hashMap->capacity;
 
     if (!(hashMap->entries + hashIndex)->used)
         return NULL;
